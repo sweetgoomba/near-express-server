@@ -16,5 +16,6 @@
     "fs": "0.0.1-security",
     "node-telegram-bot-api": "^0.61.0",
     "nodemon": "^2.0.22"
-  }
+  },
+  "type": "module"
 }
