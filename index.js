@@ -1,4 +1,4 @@
-import { startMsg, menuMsg } from './message.js'
+import { startMsg, menuMsg, realMenuMsg } from './message.js'
 import TelegramBot from 'node-telegram-bot-api';
 import https from 'https';
 import fs from 'fs';
@@ -6,14 +6,8 @@ import { constants } from 'os';
 import dotenv from "dotenv";
 import express from 'express';
 
-// https://realizetoday.tistory.com/46
-// const express = require('express');
 const app = express();
-// const https = require('https');
-// const fs = require('fs');
-// const { constants } = require('os');
 dotenv.config();
-// require('dotenv').config();
 const LINE_TOKEN = process.env.LINE_ACCESS_TOKEN;
 const ssl_options = {
     ca: fs.readFileSync('/etc/letsencrypt/live/loveplant.shop/fullchain.pem'),
@@ -25,7 +19,6 @@ app.use(express.urlencoded({
     extended: true
 
 }))
-// app.get('/', (req, res) => res.send('linked!'));
 
 app.get("/", (req, res) => {
     res.sendStatus(200)
@@ -64,8 +57,6 @@ telebot.on('message', (msg) => {
     const chatText = msg.text;
 
     switch (chatText) {
-        case 'menu':
-        case 'Menu':
         case '메뉴':
             const menuOption = {
                 reply_markup: {
@@ -79,41 +70,22 @@ telebot.on('message', (msg) => {
                                 text: '🔷 출금하기',
                                 callback_data: 'withdrawal'
                             }
-                        ],
-                        [
-                            {
-                                text: '💵 환전하기',
-                                callback_data: 'exchange'
-                            },
-                            {
-                                text: '💰 내 월렛',
-                                callback_data: 'wallet'
-                            }
                         ]
                     ]
                 }
             }
 
-            telebot.sendMessage(msg.chat.id, "메뉴입니다.\n\n어쩌고 저쩌고 블라블라입니다람쥐", menuOption)
+            telebot.sendMessage(msg.chat.id, "메뉴입니다.", menuOption)
             .catch((error) => {
-                console.log("bot.sendMessage() catch() error.code:", error.code);  // => 'ETELEGRAM'
-                console.log(error.response.body); // => { ok: false, error_code: 400, description: 'Bad Request: chat not found' }
+                console.log("bot.sendMessage() catch() error.code:", error.code);
+                console.log(error.response.body);
             });
             
             break;
 
         // default:
-        //     // send a message to the chat acknowledging receipt of their message
-        //     telebot.sendMessage(chatId, '잘 모르겠어요.')
-        //     .catch((error) => {
-        //         console.log("bot.sendMessage() catch() error.code:", error.code);  // => 'ETELEGRAM'
-        //         console.log(error.response.body); // => { ok: false, error_code: 400, description: 'Bad Request: chat not found' }`
-        //     });
     } 
 });
-
-// 잘가라 webhook 함께해서 더러웠고 다시는 보지 말자
-// telebot.setWebHook(`${url}/bot${TELEGRAM_TOKEN}`);
 
 // Handle callback queries (polling 사용)
 telebot.on('callback_query', (query) => {
@@ -126,27 +98,326 @@ telebot.on('callback_query', (query) => {
     console.log('data:', data);
 
     switch (data) {
+        // 
         case 'create_account':
+            console.log('create_account');
             createAccount(chatId);
             break;
 
+        // 입력한 계정명 계속 진행하기 예 눌렀을 때
         case 'confirm_account_name_true':
             console.log('confirm_account_name_true');
             break;
 
+        // 입력한 계정명 계속 진행하기 아니오 눌렀을 때
         case 'confirm_account_name_false':
             console.log('confirm_account_name_false');
             break;
 
-        default:
+        // 송금하기 눌렀을 때
+        case 'transfer':
+            console.log('transfer');
+            transfer(chatId);
+            break;
+            
+        // 송금할 계정 입력 후 맞는지 확인할 때 '아니오'
+        case 'confirm_transfer_account_false':
+            console.log('confirm_transfer_account_false');
+            // 기본화면으로 이동
+            defaultMessage(chatId);
+            break;
+
+        // 송금 보낼 금액 맞지 않을 때
+        case 'confirm_transfer_amount_false':
+            console.log('confirm_transfer_amount_false');
+            // 기본화면으로 이동
+            defaultMessage(chatId);
+            break;
+
+        // default:
             //
     }
+
+    // 송금할 계정 입력 후 맞는지 확인할 때 '예' 눌렀을 경우
+    if (data.startsWith('confirm_transfer_account_true:')) {
+        // Extract the parameter from the callback_data
+        const receiverId = data.split(':')[1]; // 사용자가 입력한 수신자 계정명 파라미터로 받아오기
+        console.log('confirm_transfer_account_true - parameter(사용자가 입력한 수신자 계정명):', receiverId);
+
+        get_transfer_amount(chatId, receiverId);
+
+    // 송금 보낼 금액 맞을 때
+    } else if (data.startsWith('confirm_transfer_amount_true:')) {
+        console.log('confirm_transfer_amount_true');
+        const parameters = data.split(':');
+        const receiverId = parameters[1];
+        const transferAmount = parameters[2];
+
+        start_transfer(chatId, receiverId, transferAmount);
+    }
 });
+
+// 송금 프로세스 시작
+function start_transfer(chatId, receiverId, transferAmount) {
+    console.log('start_transfer()');
+    telebot.sendMessage(chatId, "서버로 요청을 전달했어요.\n열심히 처리 중이니 잠시만 기다려주세요.")
+    .then((res) => {
+        console.log('start_transfer() sendMessage then()');
+        
+        // 수신인 계정명 : receiverId
+        // 보낼 금액 : transferAmount
+        console.log('수신인 계정명:', receiverId);
+        console.log('보낼 금액:', transferAmount);
+
+        /* * * * * * * * * * * * * * * * * * * * * * * * *
+         * * * * * * 송금하기 트랜잭션 여기서~~ * * * * * * * * *
+         * * * * * * * * * * * * * * * * * * * * * * * * */
+
+        const success = true;
+
+        console.log('typeof transferAmount:', typeof transferAmount);
+        console.log('typeof transferAmount:', typeof Number(transferAmount));
+        const realBalance = 200 - Number(transferAmount);
+
+        const result = {
+            sender : 'abc.test',
+            balance : realBalance,
+            receiver : 'cde.test',
+            timestamp : '2023/05/20, 21:40:23',
+            tx_num : 'JCpYi887z...',
+            fee : 5
+        }
+
+        // 송금 트랜잭션 성공 시
+        if (success) {
+            console.log('송금 트랜잭션 성공.');
+
+            setTimeout(() => {
+                telebot.sendMessage(chatId, `처리가 완료되었어요.\n발급된 영수증은 아래와 같아요.\n\n------------------------\n보내는 이 : ${result.sender}\n잔액 : ${result.balance} NEAR\n받는 이 : ${result.receiver}\n거래시점 : ${result.timestamp}\n거래번호 : ${result.tx_num}\n수수료 : ${result.fee} Ggas`)
+                .then(() => {
+                    const successOption = realMenuMsg.option;
+                    const text = '이제 제대로 베리니어를 즐겨 볼까요?';
+                
+                    telebot.sendMessage(chatId, text, successOption)
+                    .catch((error) => {
+                        console.log("송금 트랜잭션 성공 sendMessage() catch() error.code:", error.code);
+                        console.log(error.response.body); 
+                    });
+                })
+                .catch((error) => {
+                    console.log('Error:', error);
+                });
+            }, 1000);
+
+        // 송금 트랜잭션 실패 시
+        } else {
+            console.log('송금 트랜잭션이 실패했음.');
+            const failOption = menuMsg.option;
+            const failText = "송금요청이 실패했습니다.";
+            telebot.sendMessage(chatId, failText, failOption);
+        }
+    })
+    .catch((error) => {
+        console.log("start_transfer() sendMessage catch() error.code:", error.code);
+        console.log(error.response.body);
+    });
+}
+
+// 송금할 금액이 1~200 사이이고 정수인지 판단하는 메서드
+function isInRange(number) {
+    // Check if the number is an integer
+    if (Number.isInteger(number)) {
+      // Check if the number is within the range of 1 to 200
+      if (number >= 1 && number <= 200) {
+        return true; // Number is in the desired range
+      }
+    }
+    return false; // Number is outside the desired range or not an integer
+}
+
+// 송금하기 -> 보낼 금액(Near) 입력받기
+async function get_transfer_amount(chatId, receiverId) {
+    let listenerReply;
+
+    let contentMessage = await telebot.sendMessage(chatId, "얼마나 보내시겠어요?\n현재는 한 번에 '1~200 NEAR'까지만 보낼 수 있어요.\n\n숫자만 입력해주세요.\n10NEAR를 보내고 싶으시다면,\n숫자 '10'만 입력해주세요.", {
+        "reply_markup": {
+            "force_reply": true
+        }
+    });
+
+    listenerReply = (async (replyHandler) => {
+        telebot.removeReplyListener(listenerReply);
+
+        const transferAmount = parseInt(replyHandler.text);
+        console.log('typeof transferAmount:', typeof transferAmount);
+        console.log('transferAmount:', transferAmount);
+
+        const option = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {
+                            text: '네',
+                            callback_data: `confirm_transfer_amount_true:${receiverId}:${transferAmount}`
+                        },
+                        {
+                            text: '아니오',
+                            callback_data: 'confirm_transfer_amount_false'
+                        }
+                    ]
+                ],
+                force_reply: false
+            }
+        }
+
+
+        if (isInRange(transferAmount)) {
+            // 송금할 금액이 1~200 사이이고 정수임
+
+            /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+            * * * * * * * * * * 입력한 금액을 잔액과 비교하는 서버 작업 * * * * * * * *
+            * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+            const success = true;
+
+            // 유효한 금액을 입력했을 경우
+            if (success) {
+                await telebot.sendMessage(
+                    replyHandler.chat.id, 
+                    `${transferAmount} NEAR가 맞으신가요?`, 
+                    option
+                );
+
+            // 유효하지 않은 금액을 입력했을 경우
+            } else {
+                const option = menuMsg.option;
+                const text = '보유하신 NEAR보다 많은 금액을 입력하셨어요. 다시 시도해주세요.';
+            
+                telebot.sendMessage(chatId, text, option)
+                .catch((error) => {
+                    console.log("송금하기 유효하지 않은 금액을 입력했을 경우 sendMessage() catch() error.code:", error.code);
+                    console.log(error.response.body); 
+                });
+            }
+            
+        } else {
+            // 송금할 금액이 1~200 사이가 아니거나 소수임
+            const option = menuMsg.option;
+            const text = '1~200 사이의 정수만 입력해주세요.';
+        
+            telebot.sendMessage(chatId, text, option)
+            .catch((error) => {
+                console.log("송금할 금액이 1~200 사이가 아니거나 소수임 sendMessage() catch() error.code:", error.code);
+                console.log(error.response.body); 
+            });
+        }
+
+    });
+
+    telebot.onReplyToMessage(contentMessage.chat.id, contentMessage.message_id, listenerReply);
+}
+
+// 송금하기 클릭 후 수신인 계정명 입력받는 메서드
+async function transfer(chatId) {
+    let listenerReply;
+
+    let contentMessage = await telebot.sendMessage(chatId, "수신인의 계정명을 입력하세요.\n\n예를들면, 'glitch'라고 입력해보세요. 송금 성공해도 괜찮아요. 곧바로 저희가 재송금해드릴게요!", {
+        "reply_markup": {
+            "force_reply": true
+        }
+    });
+
+    listenerReply = (async (replyHandler) => {
+        telebot.removeReplyListener(listenerReply);
+
+        const option = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {
+                            text: '네',
+                            callback_data: `confirm_transfer_account_true:${replyHandler.text}`
+                        },
+                        {
+                            text: '아니오',
+                            callback_data: 'confirm_transfer_account_false'
+                        }
+                    ]
+                ],
+                force_reply: false
+            }
+        }
+
+        // 계정명에 ':' 넣으면 안돼서 예외처리 함.
+        if (replyHandler.text)
+
+        // Output — The character "I" exists in given string.
+        if (replyHandler.text.indexOf(":") !== -1) {
+            console.log('입력한 계정명에 ":"가 포함됨.');
+
+            const option = menuMsg.option;
+            const text = '계정명에는 ":"를 포함하실 수 없습니다. 다시 시도해주세요.';
+        
+            telebot.sendMessage(chatId, text, option)
+            .catch((error) => {
+                console.log("입력한 계정명에 ':'가 포함됨. sendMessage() catch() error.code:", error.code);
+                console.log(error.response.body); 
+            });
+        } else {
+            console.log('입력한 계정명에 ":"가 포함되지 않음 -> 진행 가능');
+
+            /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+            * * * * * * * * * * 계정이 실제로 존재하는지 서버 확인 작업 * * * * * * * *
+            * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+            const exist = true;
+
+            // 계정이 있다면
+            if (exist) {
+                await telebot.sendMessage(
+                    replyHandler.chat.id, 
+                    `'${replyHandler.text}'가 맞으신가요?`, 
+                    option
+                );
+
+            // 계정이 없다면
+            } else {
+                const option = menuMsg.option;
+                const text = '죄송하지만, 해당 계정은 존재하지 않아요. 메인으로 돌아갈게요!';
+            
+                telebot.sendMessage(chatId, text, option)
+                .catch((error) => {
+                    console.log("송금할 계정 존재하지 않을 때 sendMessage() catch() error.code:", error.code);
+                    console.log(error.response.body); 
+                });
+            }
+
+        }
+
+    });
+
+    telebot.onReplyToMessage(contentMessage.chat.id, contentMessage.message_id, listenerReply);
+}
+
+// 기본 화면 출력 
+function defaultMessage(chatId) {
+    console.log('defaultMessage()');
+
+    const option = menuMsg.option;
+    const text = '기본화면입니다.';
+
+    telebot.sendMessage(chatId, text, option)
+    .catch((error) => {
+        console.log("defaultMessage sendMessage() catch() error.code:", error.code);
+        console.log(error.response.body); 
+    });
+}
 
 function createAccount(chatId) {
     console.log('create account');
 
-    // 여기서 계정 생성 하고 돌아오기
+    /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+    * * * * * * * * * 여기서 계정 생성 관련 작업 하기 (db에 추가) * * * * * * *
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
     const success = true;
 

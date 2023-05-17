@@ -48,3 +48,43 @@ export const menuMsg = {
         }
     }
 }
+
+// 메뉴 메세지
+export const realMenuMsg = {
+    option: {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    {
+                        text: '송금',
+                        callback_data: 'transfer'
+                    },
+                    {
+                        text: '계정 조회',
+                        callback_data: 'check_account'
+                    }
+                ],
+                [
+                    {
+                        text: '블록 검색기',
+                        callback_data: 'search_block'
+                    },
+                    {
+                        text: '거래내역 조회',
+                        callback_data: 'transaction_history'
+                    }
+                ],
+                [
+                    {
+                        text: '미니게임',
+                        callback_data: 'minigame'
+                    },
+                    {
+                        text: 'FAQ',
+                        callback_data: 'FAQ'
+                    },
+                ]
+            ]
+        }
+    }
+}
