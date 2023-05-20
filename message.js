@@ -5,7 +5,8 @@ export const startMsg = {
             inline_keyboard: [
                 [
                     {
-                        text: '계정 생성',
+                        text: 'create account',
+                        // text: '계정 생성',
                         callback_data: 'create_account'
                     },
                     {
@@ -16,7 +17,8 @@ export const startMsg = {
             ]
         }
     },
-    text: "\n안녕하세요? 당신에게 더 가까운 지갑, 베리니어입니다.\n"
+    text: "\nHi! This is your nearer wallet, Very Near.\n"
+    // text: "\n안녕하세요? 당신에게 더 가까운 지갑, 베리니어입니다.\n"
 }
 
 // 메뉴 메세지
@@ -26,11 +28,12 @@ export const menuMsg = {
             inline_keyboard: [
                 [
                     {
-                        text: '송금',
+                        text: 'transfer',
+                        // text: '송금',
                         callback_data: 'transfer'
                     },
                     {
-                        text: '계정 조회',
+                        text: 'check account',
                         callback_data: 'check_account'
                     }
                 ],
@@ -40,7 +43,7 @@ export const menuMsg = {
                         callback_data: 'FAQ'
                     },
                     {
-                        text: '거래내역 조회',
+                        text: 'transaction history',
                         callback_data: 'transaction_history'
                     }
                 ]
@@ -56,33 +59,33 @@ export const realMenuMsg = {
             inline_keyboard: [
                 [
                     {
-                        text: '송금',
+                        text: 'transfer',
                         callback_data: 'transfer'
                     },
                     {
-                        text: '계정 조회',
-                        callback_data: 'check_account'
-                    }
-                ],
-                [
-                    {
-                        text: '블록 검색기',
-                        callback_data: 'search_block'
-                    },
-                    {
-                        text: '거래내역 조회',
+                        text: 'transaction history',
                         callback_data: 'transaction_history'
                     }
                 ],
                 [
                     {
-                        text: '미니게임',
+                        text: 'mini game',
                         callback_data: 'minigame'
                     },
+                    {
+                        text: 'check account',
+                        callback_data: 'check_account'
+                    }
+                ],
+                [
                     {
                         text: 'FAQ',
                         callback_data: 'FAQ'
                     },
+                    {
+                        text: 'block explorer',
+                        callback_data: 'search_block'
+                    }
                 ]
             ]
         }
